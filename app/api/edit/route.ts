@@ -8,14 +8,11 @@ export async function POST(request: Request) {
         {
           error: "GEMINI_API_KEY is not configured.",
         },
-        {
-          status: 500,
-        }
+        { status: 500 }
       );
     }
 
     const body = await request.json();
-
     const command = body.command;
 
     if (!command || typeof command !== "string") {
@@ -23,9 +20,7 @@ export async function POST(request: Request) {
         {
           error: "Command is required.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -36,48 +31,43 @@ export async function POST(request: Request) {
     const prompt = `
 You are an AI video editing assistant.
 
-Convert the user's natural language video editing command into a structured editing plan.
-
-The video editor will later use this plan to actually edit videos with FFmpeg.
+Convert the user's video editing command into a structured editing plan.
 
 User command:
-
 ${command}
 
 Return ONLY valid JSON.
 
-The JSON must contain exactly these fields:
+Use exactly these fields:
 
 {
-  "duration": number,
-  "aspectRatio": "9:16" | "16:9" | "1:1",
-  "style": "normal" | "cinematic" | "energetic",
-  "cinematic": boolean,
-  "transitions": boolean,
-  "music": boolean,
-  "captions": boolean,
-  "removeSilence": boolean,
-  "selectBestParts": boolean
+  "duration": 30,
+  "aspectRatio": "9:16",
+  "style": "energetic",
+  "cinematic": false,
+  "transitions": true,
+  "music": true,
+  "captions": true,
+  "removeSilence": true,
+  "selectBestParts": true
 }
 
 Rules:
 
-- Instagram Reels normally use 9:16.
-- TikTok normally uses 9:16.
-- YouTube normally uses 16:9.
-- Square social media videos use 1:1.
-- If the user asks for cinematic editing, cinematic must be true.
-- If the user asks for transitions, transitions must be true.
-- If the user asks for music, music must be true.
-- If the user asks for captions or subtitles, captions must be true.
-- If the user asks to remove silence or boring sections, removeSilence must be true.
-- If the user asks to select highlights, best moments, or the best parts, selectBestParts must be true.
-- If the user asks for energetic editing, style must be energetic.
-- If the user asks for cinematic editing, style must be cinematic.
-- Otherwise style must be normal.
-- If a short-form video has no duration specified, use 30 seconds.
-- If no duration can be determined, use 60 seconds.
-- Return only JSON.
+- Instagram Reels use 9:16.
+- TikTok uses 9:16.
+- YouTube uses 16:9.
+- Square videos use 1:1.
+- Cinematic request means cinematic = true.
+- Transition request means transitions = true.
+- Music request means music = true.
+- Caption/subtitle request means captions = true.
+- Remove silence/boring sections means removeSilence = true.
+- Best moments/highlights means selectBestParts = true.
+- Energetic request means style = energetic.
+- Cinematic request means style = cinematic.
+- Otherwise style = normal.
+- If no short-video duration is specified, use 30 seconds.
 `;
 
     const response = await ai.models.generateContent({
@@ -98,7 +88,6 @@ Rules:
 
     return NextResponse.json({
       success: true,
-      command,
       plan,
     });
   } catch (error: any) {
@@ -106,13 +95,9 @@ Rules:
 
     return NextResponse.json(
       {
-        error:
-          error?.message ||
-          "Failed to create editing plan.",
+        error: error?.message || "Gemini request failed.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
