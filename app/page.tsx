@@ -5,11 +5,43 @@ import { useState } from "react";
 export default function Home() {
   const [videos, setVideos] = useState<File[]>([]);
   const [command, setCommand] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState<any>(null);
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setVideos(Array.from(e.target.files));
     }
+  };
+
+  const generateEdit = async () => {
+    setLoading(true);
+    setPlan(null);
+
+    try {
+      const response = await fetch("/api/edit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          command,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Something went wrong");
+      }
+
+      setPlan(data.plan);
+    } catch (error) {
+      alert("Something went wrong while creating the editing plan.");
+      console.error(error);
+    }
+
+    setLoading(false);
   };
 
   return (
@@ -19,7 +51,7 @@ export default function Home() {
           ✨ EditAI
         </h1>
 
-        <button className="rounded-lg bg-white px-5 py-2 font-medium text-black">
+        <button className="rounded-lg bg-white px-5 py-2 font-medium text-black transition hover:bg-zinc-200">
           Export
         </button>
       </nav>
@@ -35,7 +67,9 @@ export default function Home() {
 
         <label className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-700 bg-zinc-950 transition hover:border-zinc-500">
           <div className="text-center">
-            <div className="mb-4 text-5xl">📤</div>
+            <div className="mb-4 text-5xl">
+              📤
+            </div>
 
             <h3 className="text-xl font-semibold">
               Upload your videos
@@ -90,7 +124,9 @@ export default function Home() {
 
         <section className="mt-12">
           <div className="mb-4 flex items-center gap-2">
-            <span className="text-xl">✨</span>
+            <span className="text-xl">
+              ✨
+            </span>
 
             <h3 className="text-xl font-semibold">
               Tell AI what to create
@@ -105,11 +141,98 @@ export default function Home() {
           />
 
           <button
-            disabled={!command.trim() || videos.length === 0}
+            onClick={generateEdit}
+            disabled={
+              !command.trim() ||
+              videos.length === 0 ||
+              loading
+            }
             className="mt-4 rounded-xl bg-white px-7 py-3 font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            ✨ Generate Edit
+            {loading
+              ? "Creating plan..."
+              : "✨ Generate Edit"}
           </button>
+
+          {plan && (
+            <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+              <h3 className="mb-5 text-xl font-semibold">
+                ✨ Editing Plan
+              </h3>
+
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <div>
+                  <p className="text-sm text-zinc-500">
+                    Duration
+                  </p>
+
+                  <p className="mt-1 font-semibold">
+                    {plan.duration} seconds
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-zinc-500">
+                    Format
+                  </p>
+
+                  <p className="mt-1 font-semibold">
+                    {plan.aspectRatio}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-zinc-500">
+                    Cinematic
+                  </p>
+
+                  <p className="mt-1 font-semibold">
+                    {plan.cinematic ? "Yes" : "No"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-zinc-500">
+                    Transitions
+                  </p>
+
+                  <p className="mt-1 font-semibold">
+                    {plan.transitions ? "Yes" : "No"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-zinc-500">
+                    Music
+                  </p>
+
+                  <p className="mt-1 font-semibold">
+                    {plan.music ? "Yes" : "No"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-zinc-500">
+                    Captions
+                  </p>
+
+                  <p className="mt-1 font-semibold">
+                    {plan.captions ? "Yes" : "No"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-zinc-500">
+                    Remove Silence
+                  </p>
+
+                  <p className="mt-1 font-semibold">
+                    {plan.removeSilence ? "Yes" : "No"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="mt-12">
@@ -119,7 +242,9 @@ export default function Home() {
 
           <div className="flex aspect-video items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950">
             <div className="text-center text-zinc-600">
-              <div className="mb-3 text-5xl">▶</div>
+              <div className="mb-3 text-5xl">
+                ▶
+              </div>
 
               <p>
                 Your edited video will appear here
