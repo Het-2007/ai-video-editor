@@ -37,8 +37,8 @@ export default function Home() {
 
       setPlan(data.plan);
     } catch (error) {
-      alert("Something went wrong while creating the editing plan.");
       console.error(error);
+      alert("Something went wrong while creating the editing plan.");
     }
 
     setLoading(false);
@@ -183,6 +183,16 @@ export default function Home() {
 
                 <div>
                   <p className="text-sm text-zinc-500">
+                    Style
+                  </p>
+
+                  <p className="mt-1 font-semibold capitalize">
+                    {plan.style}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-zinc-500">
                     Cinematic
                   </p>
 
@@ -228,6 +238,16 @@ export default function Home() {
 
                   <p className="mt-1 font-semibold">
                     {plan.removeSilence ? "Yes" : "No"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-zinc-500">
+                    Best Parts
+                  </p>
+
+                  <p className="mt-1 font-semibold">
+                    {plan.selectBestParts ? "Yes" : "No"}
                   </p>
                 </div>
               </div>
