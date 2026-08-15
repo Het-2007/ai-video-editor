@@ -1,79 +1,97 @@
-import { v2 as cloudinary } from "cloudinary";
 import { NextResponse } from "next/server";
-
-export const runtime = "nodejs";
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 export async function POST(request: Request) {
   try {
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-    const apiKey = process.env.CLOUDINARY_API_KEY;
-    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    const formData = await request.formData();
 
-    if (!cloudName || !apiKey || !apiSecret) {
+    const file = formData.get("file");
+
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { error: "No video file was provided." },
+        { status: 400 }
+      );
+    }
+
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET;
+
+    if (!cloudName || !uploadPreset) {
       return NextResponse.json(
         {
-          success: false,
-          error: "Cloudinary environment variables are missing.",
+          error:
+            "Cloudinary environment variables are missing.",
         },
         { status: 500 }
       );
     }
 
-    const formData = await request.formData();
-    const file = formData.get("file");
-
-    if (!file || !(file instanceof File)) {
+    if (!file.type.startsWith("video/")) {
       return NextResponse.json(
         {
-          success: false,
-          error: "No video file received.",
+          error: "Only video files are allowed.",
         },
         { status: 400 }
       );
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const cloudinaryForm = new FormData();
 
-    const result = await new Promise<any>((resolve, reject) => {
-      const upload = cloudinary.uploader.upload_stream(
+    cloudinaryForm.append("file", file);
+    cloudinaryForm.append("upload_preset", uploadPreset);
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+      {
+        method: "POST",
+        body: cloudinaryForm,
+      }
+    );
+
+    const responseText = await response.text();
+
+    let data;
+
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      return NextResponse.json(
         {
-          resource_type: "video",
-          folder: "ai-video-editor",
+          error:
+            "Cloudinary returned an invalid response.",
         },
-        (error, result) => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve(result);
-          }
-        }
+        { status: 502 }
       );
+    }
 
-      upload.end(buffer);
-    });
+    if (!response.ok) {
+      console.error("CLOUDINARY ERROR:", data);
+
+      return NextResponse.json(
+        {
+          error:
+            data.error?.message ||
+            "Cloudinary upload failed.",
+        },
+        { status: response.status }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      url: result.secure_url,
-      publicId: result.public_id,
-      duration: result.duration,
-      width: result.width,
-      height: result.height,
+      url: data.secure_url,
+      publicId: data.public_id,
+      duration: data.duration,
+      format: data.format,
+      width: data.width,
+      height: data.height,
     });
-  } catch (error: any) {
-    console.error("CLOUDINARY UPLOAD ERROR:", error);
+  } catch (error) {
+    console.error("UPLOAD ERROR:", error);
 
     return NextResponse.json(
       {
-        success: false,
-        error: error?.message || "Cloudinary upload failed.",
+        error: "Something went wrong while uploading the video.",
       },
       { status: 500 }
     );
