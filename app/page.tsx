@@ -2,19 +2,73 @@
 
 import { useState } from "react";
 
+type UploadedVideo = {
+  name: string;
+  url: string;
+  publicId: string;
+  duration?: number;
+};
+
 export default function Home() {
   const [videos, setVideos] = useState<File[]>([]);
+  const [uploadedVideos, setUploadedVideos] = useState<UploadedVideo[]>([]);
   const [command, setCommand] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [plan, setPlan] = useState<any>(null);
 
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setVideos(Array.from(e.target.files));
+  const handleUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!e.target.files) return;
+
+    const files = Array.from(e.target.files);
+
+    setVideos(files);
+    setUploadedVideos([]);
+    setUploading(true);
+
+    try {
+      const results: UploadedVideo[] = [];
+
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Upload failed");
+        }
+
+        results.push({
+          name: file.name,
+          url: data.url,
+          publicId: data.publicId,
+          duration: data.duration,
+        });
+      }
+
+      setUploadedVideos(results);
+    } catch (error: any) {
+      console.error(error);
+      alert(error?.message || "Video upload failed.");
     }
+
+    setUploading(false);
   };
 
   const generateEdit = async () => {
+    if (uploadedVideos.length === 0) {
+      alert("Please upload your videos first.");
+      return;
+    }
+
     setLoading(true);
     setPlan(null);
 
@@ -26,19 +80,25 @@ export default function Home() {
         },
         body: JSON.stringify({
           command,
+          videos: uploadedVideos,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Something went wrong");
+        throw new Error(
+          data.error || "Failed to create editing plan."
+        );
       }
 
       setPlan(data.plan);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Something went wrong while creating the editing plan.");
+      alert(
+        error?.message ||
+          "Something went wrong while creating the editing plan."
+      );
     }
 
     setLoading(false);
@@ -68,11 +128,13 @@ export default function Home() {
         <label className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-700 bg-zinc-950 transition hover:border-zinc-500">
           <div className="text-center">
             <div className="mb-4 text-5xl">
-              📤
+              {uploading ? "⏳" : "📤"}
             </div>
 
             <h3 className="text-xl font-semibold">
-              Upload your videos
+              {uploading
+                ? "Uploading videos..."
+                : "Upload your videos"}
             </h3>
 
             <p className="mt-2 text-sm text-zinc-500">
@@ -86,6 +148,7 @@ export default function Home() {
             multiple
             className="hidden"
             onChange={handleUpload}
+            disabled={uploading}
           />
         </label>
 
@@ -115,6 +178,12 @@ export default function Home() {
                     <p className="mt-1 text-xs text-zinc-500">
                       {(video.size / 1024 / 1024).toFixed(1)} MB
                     </p>
+
+                    {uploadedVideos[index] && (
+                      <p className="mt-1 text-xs text-green-500">
+                        ✓ Uploaded
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -144,7 +213,8 @@ export default function Home() {
             onClick={generateEdit}
             disabled={
               !command.trim() ||
-              videos.length === 0 ||
+              uploadedVideos.length === 0 ||
+              uploading ||
               loading
             }
             className="mt-4 rounded-xl bg-white px-7 py-3 font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
@@ -165,7 +235,6 @@ export default function Home() {
                   <p className="text-sm text-zinc-500">
                     Duration
                   </p>
-
                   <p className="mt-1 font-semibold">
                     {plan.duration} seconds
                   </p>
@@ -175,7 +244,6 @@ export default function Home() {
                   <p className="text-sm text-zinc-500">
                     Format
                   </p>
-
                   <p className="mt-1 font-semibold">
                     {plan.aspectRatio}
                   </p>
@@ -185,7 +253,6 @@ export default function Home() {
                   <p className="text-sm text-zinc-500">
                     Style
                   </p>
-
                   <p className="mt-1 font-semibold capitalize">
                     {plan.style}
                   </p>
@@ -195,7 +262,6 @@ export default function Home() {
                   <p className="text-sm text-zinc-500">
                     Cinematic
                   </p>
-
                   <p className="mt-1 font-semibold">
                     {plan.cinematic ? "Yes" : "No"}
                   </p>
@@ -205,7 +271,6 @@ export default function Home() {
                   <p className="text-sm text-zinc-500">
                     Transitions
                   </p>
-
                   <p className="mt-1 font-semibold">
                     {plan.transitions ? "Yes" : "No"}
                   </p>
@@ -215,7 +280,6 @@ export default function Home() {
                   <p className="text-sm text-zinc-500">
                     Music
                   </p>
-
                   <p className="mt-1 font-semibold">
                     {plan.music ? "Yes" : "No"}
                   </p>
@@ -225,7 +289,6 @@ export default function Home() {
                   <p className="text-sm text-zinc-500">
                     Captions
                   </p>
-
                   <p className="mt-1 font-semibold">
                     {plan.captions ? "Yes" : "No"}
                   </p>
@@ -235,7 +298,6 @@ export default function Home() {
                   <p className="text-sm text-zinc-500">
                     Remove Silence
                   </p>
-
                   <p className="mt-1 font-semibold">
                     {plan.removeSilence ? "Yes" : "No"}
                   </p>
@@ -245,7 +307,6 @@ export default function Home() {
                   <p className="text-sm text-zinc-500">
                     Best Parts
                   </p>
-
                   <p className="mt-1 font-semibold">
                     {plan.selectBestParts ? "Yes" : "No"}
                   </p>
