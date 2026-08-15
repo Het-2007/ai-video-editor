@@ -1,12 +1,19 @@
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export async function POST(request: Request) {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json(
+        {
+          error: "GEMINI_API_KEY is not configured.",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
     const body = await request.json();
 
     const command = body.command;
@@ -14,7 +21,7 @@ export async function POST(request: Request) {
     if (!command || typeof command !== "string") {
       return NextResponse.json(
         {
-          error: "Command is required",
+          error: "Command is required.",
         },
         {
           status: 400,
@@ -22,145 +29,86 @@ export async function POST(request: Request) {
       );
     }
 
-    const response = await openai.responses.create({
-      model: "gpt-5-mini",
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+    });
 
-      input: [
-        {
-          role: "system",
-          content: `
+    const prompt = `
 You are an AI video editing assistant.
 
-Your job is to understand a user's natural language video editing request and convert it into a structured editing plan.
+Convert the user's natural language video editing command into a structured editing plan.
 
-The plan will later be executed by a video processing system using FFmpeg.
+The video editor will later use this plan to actually edit videos with FFmpeg.
 
-Understand commands such as:
-- Instagram reels
-- YouTube videos
-- TikTok videos
-- cinematic videos
-- short videos
-- long videos
-- remove silence
-- remove boring parts
-- select best clips
-- transitions
-- background music
-- captions
-- subtitles
-- vertical videos
-- landscape videos
-- square videos
-- slow motion
-- energetic editing
-- cinematic editing
+User command:
+
+${command}
+
+Return ONLY valid JSON.
+
+The JSON must contain exactly these fields:
+
+{
+  "duration": number,
+  "aspectRatio": "9:16" | "16:9" | "1:1",
+  "style": "normal" | "cinematic" | "energetic",
+  "cinematic": boolean,
+  "transitions": boolean,
+  "music": boolean,
+  "captions": boolean,
+  "removeSilence": boolean,
+  "selectBestParts": boolean
+}
 
 Rules:
 
-1. duration must be a number in seconds.
-2. Use 30 seconds when the user asks for a short reel but doesn't specify a duration.
-3. Use 60 seconds when no duration can reasonably be determined.
-4. Instagram Reels and TikTok should normally use 9:16.
-5. YouTube landscape videos should normally use 16:9.
-6. Square social media videos should use 1:1.
-7. If the user asks for cinematic editing, cinematic should be true.
-8. If the user asks for transitions, transitions should be true.
-9. If the user asks for music, music should be true.
-10. If the user asks for captions or subtitles, captions should be true.
-11. If the user asks to remove silence or boring sections, removeSilence should be true.
-12. If the user asks for the best parts/highlights, selectBestParts should be true.
-13. If the user asks for energetic editing, style should be "energetic".
-14. If the user asks for cinematic editing, style should be "cinematic".
-15. Otherwise style should be "normal".
+- Instagram Reels normally use 9:16.
+- TikTok normally uses 9:16.
+- YouTube normally uses 16:9.
+- Square social media videos use 1:1.
+- If the user asks for cinematic editing, cinematic must be true.
+- If the user asks for transitions, transitions must be true.
+- If the user asks for music, music must be true.
+- If the user asks for captions or subtitles, captions must be true.
+- If the user asks to remove silence or boring sections, removeSilence must be true.
+- If the user asks to select highlights, best moments, or the best parts, selectBestParts must be true.
+- If the user asks for energetic editing, style must be energetic.
+- If the user asks for cinematic editing, style must be cinematic.
+- Otherwise style must be normal.
+- If a short-form video has no duration specified, use 30 seconds.
+- If no duration can be determined, use 60 seconds.
+- Return only JSON.
+`;
 
-Return only the structured JSON requested by the schema.
-          `,
-        },
-        {
-          role: "user",
-          content: command,
-        },
-      ],
-
-      text: {
-        format: {
-          type: "json_schema",
-          name: "video_editing_plan",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              duration: {
-                type: "number",
-              },
-
-              aspectRatio: {
-                type: "string",
-                enum: ["9:16", "16:9", "1:1"],
-              },
-
-              style: {
-                type: "string",
-                enum: ["normal", "cinematic", "energetic"],
-              },
-
-              cinematic: {
-                type: "boolean",
-              },
-
-              transitions: {
-                type: "boolean",
-              },
-
-              music: {
-                type: "boolean",
-              },
-
-              captions: {
-                type: "boolean",
-              },
-
-              removeSilence: {
-                type: "boolean",
-              },
-
-              selectBestParts: {
-                type: "boolean",
-              },
-            },
-
-            required: [
-              "duration",
-              "aspectRatio",
-              "style",
-              "cinematic",
-              "transitions",
-              "music",
-              "captions",
-              "removeSilence",
-              "selectBestParts",
-            ],
-
-            additionalProperties: false,
-          },
-        },
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
       },
     });
 
-    const plan = JSON.parse(response.output_text);
+    const text = response.text;
+
+    if (!text) {
+      throw new Error("Gemini returned an empty response.");
+    }
+
+    const plan = JSON.parse(text);
 
     return NextResponse.json({
       success: true,
       command,
       plan,
     });
-  } catch (error) {
-    console.error("AI editing error:", error);
+  } catch (error: any) {
+    console.error("GEMINI ERROR:", error);
 
     return NextResponse.json(
       {
-        error: "Failed to create editing plan",
+        error:
+          error?.message ||
+          "Failed to create editing plan.",
       },
       {
         status: 500,
