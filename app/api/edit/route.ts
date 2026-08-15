@@ -31,14 +31,14 @@ export async function POST(request: Request) {
     const prompt = `
 You are an AI video editing assistant.
 
-Convert the user's video editing command into a structured editing plan.
+Convert the user's natural-language video editing command into a structured editing plan.
 
 User command:
 ${command}
 
 Return ONLY valid JSON.
 
-Use exactly these fields:
+The JSON must contain exactly these fields:
 
 {
   "duration": 30,
@@ -54,40 +54,45 @@ Use exactly these fields:
 
 Rules:
 
-- Instagram Reels use 9:16.
-- TikTok uses 9:16.
-- YouTube uses 16:9.
+- Instagram Reels normally use 9:16.
+- TikTok normally uses 9:16.
+- YouTube videos normally use 16:9.
 - Square videos use 1:1.
-- Cinematic request means cinematic = true.
-- Transition request means transitions = true.
-- Music request means music = true.
-- Caption/subtitle request means captions = true.
-- Remove silence/boring sections means removeSilence = true.
-- Best moments/highlights means selectBestParts = true.
-- Energetic request means style = energetic.
-- Cinematic request means style = cinematic.
-- Otherwise style = normal.
-- If no short-video duration is specified, use 30 seconds.
+- If the user asks for cinematic editing, cinematic must be true.
+- If the user asks for transitions, transitions must be true.
+- If the user asks for music, music must be true.
+- If the user asks for captions or subtitles, captions must be true.
+- If the user asks to remove silence or boring sections, removeSilence must be true.
+- If the user asks for highlights, best moments, or best parts, selectBestParts must be true.
+- If the user asks for energetic editing, style must be energetic.
+- If the user asks for cinematic editing, style must be cinematic.
+- Otherwise style must be normal.
+- If a short-form duration is not specified, use 30 seconds.
+- If no reasonable duration can be determined, use 60 seconds.
 `;
 
-    const response = await ai.models.generateContent({
-     model: "gemini-2.5-flash-lite",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      },
+    const interaction = await ai.interactions.create({
+      model: "gemini-3.6-flash",
+      input: prompt,
+      store: false,
     });
 
-    const text = response.text;
+    const outputText = interaction.output_text;
 
-    if (!text) {
+    if (!outputText) {
       throw new Error("Gemini returned an empty response.");
     }
 
-    const plan = JSON.parse(text);
+    const cleanedText = outputText
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    const plan = JSON.parse(cleanedText);
 
     return NextResponse.json({
       success: true,
+      command,
       plan,
     });
   } catch (error: any) {
@@ -95,7 +100,9 @@ Rules:
 
     return NextResponse.json(
       {
-        error: error?.message || "Gemini request failed.",
+        error:
+          error?.message ||
+          "Failed to create editing plan.",
       },
       { status: 500 }
     );
