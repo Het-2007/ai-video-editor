@@ -1,6 +1,8 @@
 import { v2 as cloudinary } from "cloudinary";
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -9,12 +11,29 @@ cloudinary.config({
 
 export async function POST(request: Request) {
   try {
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Cloudinary environment variables are missing.",
+        },
+        { status: 500 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file");
 
-    if (!(file instanceof File)) {
+    if (!file || !(file instanceof File)) {
       return NextResponse.json(
-        { error: "No video file received." },
+        {
+          success: false,
+          error: "No video file received.",
+        },
         { status: 400 }
       );
     }
@@ -23,7 +42,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(bytes);
 
     const result = await new Promise<any>((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
+      const upload = cloudinary.uploader.upload_stream(
         {
           resource_type: "video",
           folder: "ai-video-editor",
@@ -37,7 +56,7 @@ export async function POST(request: Request) {
         }
       );
 
-      uploadStream.end(buffer);
+      upload.end(buffer);
     });
 
     return NextResponse.json({
@@ -49,11 +68,12 @@ export async function POST(request: Request) {
       height: result.height,
     });
   } catch (error: any) {
-    console.error("CLOUDINARY ERROR:", error);
+    console.error("CLOUDINARY UPLOAD ERROR:", error);
 
     return NextResponse.json(
       {
-        error: error?.message || "Video upload failed.",
+        success: false,
+        error: error?.message || "Cloudinary upload failed.",
       },
       { status: 500 }
     );

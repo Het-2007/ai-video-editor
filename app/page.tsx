@@ -26,6 +26,7 @@ export default function Home() {
 
     setVideos(files);
     setUploadedVideos([]);
+    setPlan(null);
     setUploading(true);
 
     try {
@@ -33,6 +34,7 @@ export default function Home() {
 
       for (const file of files) {
         const formData = new FormData();
+
         formData.append("file", file);
 
         const response = await fetch("/api/upload", {
@@ -40,10 +42,20 @@ export default function Home() {
           body: formData,
         });
 
-        const data = await response.json();
+        const responseText = await response.text();
+
+        let data;
+
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw new Error(
+            `Upload API returned an invalid response (${response.status}).`
+          );
+        }
 
         if (!response.ok) {
-          throw new Error(data.error || "Upload failed");
+          throw new Error(data.error || "Upload failed.");
         }
 
         results.push({
@@ -56,16 +68,25 @@ export default function Home() {
 
       setUploadedVideos(results);
     } catch (error: any) {
-      console.error(error);
-      alert(error?.message || "Video upload failed.");
-    }
+      console.error("UPLOAD ERROR:", error);
 
-    setUploading(false);
+      alert(
+        error?.message ||
+          "Something went wrong while uploading the videos."
+      );
+    } finally {
+      setUploading(false);
+    }
   };
 
   const generateEdit = async () => {
     if (uploadedVideos.length === 0) {
       alert("Please upload your videos first.");
+      return;
+    }
+
+    if (!command.trim()) {
+      alert("Please enter an editing command.");
       return;
     }
 
@@ -84,7 +105,17 @@ export default function Home() {
         }),
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+
+      let data;
+
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(
+          `Edit API returned an invalid response (${response.status}).`
+        );
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -94,14 +125,15 @@ export default function Home() {
 
       setPlan(data.plan);
     } catch (error: any) {
-      console.error(error);
+      console.error("EDIT ERROR:", error);
+
       alert(
         error?.message ||
           "Something went wrong while creating the editing plan."
       );
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -193,9 +225,7 @@ export default function Home() {
 
         <section className="mt-12">
           <div className="mb-4 flex items-center gap-2">
-            <span className="text-xl">
-              ✨
-            </span>
+            <span className="text-xl">✨</span>
 
             <h3 className="text-xl font-semibold">
               Tell AI what to create
@@ -219,9 +249,7 @@ export default function Home() {
             }
             className="mt-4 rounded-xl bg-white px-7 py-3 font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {loading
-              ? "Creating plan..."
-              : "✨ Generate Edit"}
+            {loading ? "Creating plan..." : "✨ Generate Edit"}
           </button>
 
           {plan && (
